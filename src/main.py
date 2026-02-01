@@ -228,12 +228,44 @@ def should_exclude_title(title: str, prefixes: List[str]) -> bool:
     return False
 
 
-def build_client() -> Optional[OpenAI]:
+def get_base_urls() -> List[str]:
+    raw = os.getenv("DEEPSEEK_BASE_URLS")
+    if raw:
+        return [u.strip() for u in raw.split(",") if u.strip()]
+    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://openapi.coreshub.cn/v1")
+    return [base_url]
+
+
+def build_client(base_url: str) -> OpenAI:
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    return OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=30,
+        max_retries=2,
+    )
+
+
+def select_client(base_urls: List[str], model: str) -> Optional[OpenAI]:
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         return None
-    base_url = os.getenv("DEEPSEEK_BASE_URL", "https://openapi.coreshub.cn/v1")
-    return OpenAI(api_key=api_key, base_url=base_url)
+    last_error = ""
+    for url in base_urls:
+        client = build_client(url)
+        try:
+            client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1,
+                temperature=0,
+            )
+            print(f"[info] LLM base_url ok: {url}")
+            return client
+        except Exception as exc:
+            last_error = str(exc)
+            print(f"[warn] LLM base_url failed: {url} ({exc})")
+    raise RuntimeError(f"LLM base_url 都不可用: {last_error}")
 
 
 def extract_json(content: str) -> Dict[str, Any]:
@@ -479,8 +511,12 @@ def main() -> int:
     now_utc = datetime.now(timezone.utc)
     now_local = now_utc.astimezone(tz)
     llm_cfg = cfg.get("llm", {})
+    model_name = os.getenv("DEEPSEEK_MODEL", llm_cfg.get("model", "DeepSeek-R1"))
     require_llm = bool(llm_cfg.get("require", False))
     print(f"[info] LLM key present: {bool(os.getenv('DEEPSEEK_API_KEY'))}")
+    if os.getenv("DEEPSEEK_BASE_URLS") or os.getenv("DEEPSEEK_BASE_URL"):
+        print(f"[info] LLM base_urls: {','.join(get_base_urls())}")
+    print(f"[info] LLM model: {model_name}")
 
     window_mode = cfg.get("window_mode", "last_run")
     if window_mode == "fixed":
@@ -572,7 +608,7 @@ def main() -> int:
     llm_sum_ok = 0
     llm_sum_fail = 0
 
-    client = None if args.no_llm else build_client()
+    client = None if args.no_llm else select_client(get_base_urls(), model_name)
     if require_llm and not client:
         raise RuntimeError("LLM 必需但未配置 DEEPSEEK_API_KEY")
     if client:
@@ -588,7 +624,7 @@ def main() -> int:
         last_rel_error = ""
         for p in eval_list:
             try:
-                data = llm_relevance(client, cfg.get("llm", {}).get("model", "DeepSeek-R1"), focus, p)
+                data = llm_relevance(client, model_name, focus, p)
                 p.relevance_score = int(data.get("score", 0))
                 p.relevance_reason = str(data.get("reason", ""))
                 llm_rel_ok += 1
@@ -625,7 +661,7 @@ def main() -> int:
         last_sum_error = ""
         for p in papers:
             try:
-                p.summary = llm_summary(client, cfg.get("llm", {}).get("model", "DeepSeek-R1"), focus, p, language)
+                p.summary = llm_summary(client, model_name, focus, p, language)
                 llm_sum_ok += 1
             except Exception as exc:
                 print(f"[warn] summary LLM failed: {p.title} ({exc})")

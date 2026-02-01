@@ -1,8 +1,18 @@
 {
-  "last_run": "2026-02-01T08:02:52.590152+00:00",
+  "last_run": "2026-02-01T08:12:34.566442+00:00",
   "sent_ids": [
     "doi:doi:10.1038/s41467-026-68723-7",
     "doi:doi:10.1038/s43247-026-03252-1",
-    "doi:doi:10.1038/s43247-026-03244-1"
+    "doi:doi:10.1038/s43247-026-03244-1",
+    "doi:doi:10.1038/s41558-025-02518-4",
+    "doi:doi:10.1038/s41560-025-01915-5",
+    "doi:doi:10.1038/s41560-025-01922-6",
+    "doi:doi:10.1038/s41558-025-02539-z",
+    "doi:doi:10.1038/s42949-026-00344-x",
+    "title:spatiotemporalcontinuallearningformobileedgeuavnetworksmitigatingcatastrophicforgetting",
+    "title:assessingtheenergyperformanceofintegratedlivingwallsystemsadynamicnumericalmodelcoupledwithtrnsysforbuildingenergysimulations",
+    "title:aidrivenmorphologicaloptimizationforresilientretrofittingofmediterraneanhousingstockundercompoundedurbanheatislandandheatwaveeffects",
+    "title:policymodelingforurbanenergyresiliencetoextremeheatamultiagentsimulationframeworkinchongqingchina",
+    "title:twostagerollingoptimizationresilienceenhancementstrategyformultimicrogridunderextremeweatherconditions"
   ]
 }

@@ -25,7 +25,7 @@ Phase 1
 ### Phase 3: Implementation
 - [x] 实现抓取与过滤脚本
 - [x] 实现日报格式化与邮件发送
-- [ ] 配置 Actions 与 secrets
+- [ ] 配置 Actions 与 secrets（用户在 GitHub 里完成）
 - **Status:** in_progress
 
 ### Phase 4: Testing & Verification

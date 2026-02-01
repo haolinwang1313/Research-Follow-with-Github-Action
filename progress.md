@@ -13,6 +13,7 @@
 - 通过网页检索确认 Nature RSS 形态与 npj Urban Sustainability 期刊名称
 - 通过网页检索确认 QQ 邮箱 SMTP 配置要点
 - 搭建脚本与配置文件（src/main.py、src/config.yaml、workflow、README）
+- 初始化 git 仓库并推送至 GitHub 远端
 
 ### Test Results
 | Test | Expected | Actual | Status |

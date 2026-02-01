@@ -1,5 +1,6 @@
 timezone: Asia/Shanghai
-lookback_hours: 36
+window_mode: fixed
+lookback_hours: 720
 max_papers: 10
 max_llm_eval: 40
 min_keyword_hits: 2

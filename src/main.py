@@ -455,14 +455,18 @@ def main() -> int:
     require_llm = bool(llm_cfg.get("require", False))
     print(f"[info] LLM key present: {bool(os.getenv('DEEPSEEK_API_KEY'))}")
 
-    last_run = state.get("last_run")
-    if last_run:
-        try:
-            window_start = dateparser.parse(last_run).astimezone(timezone.utc)
-        except Exception:
-            window_start = now_utc - timedelta(hours=cfg.get("lookback_hours", 36))
-    else:
+    window_mode = cfg.get("window_mode", "last_run")
+    if window_mode == "fixed":
         window_start = now_utc - timedelta(hours=cfg.get("lookback_hours", 36))
+    else:
+        last_run = state.get("last_run")
+        if last_run:
+            try:
+                window_start = dateparser.parse(last_run).astimezone(timezone.utc)
+            except Exception:
+                window_start = now_utc - timedelta(hours=cfg.get("lookback_hours", 36))
+        else:
+            window_start = now_utc - timedelta(hours=cfg.get("lookback_hours", 36))
 
     sources = cfg.get("sources", {})
     papers: List[Paper] = []

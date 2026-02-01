@@ -5,3 +5,8 @@ __pycache__/
 .DS_Store
 logs/
 output/
+
+# planning files
+task_plan.md
+progress.md
+findings.md

@@ -1,0 +1,5 @@
+openai>=1.30.0
+requests>=2.31.0
+feedparser>=6.0.10
+python-dateutil>=2.9.0
+pyyaml>=6.0.1

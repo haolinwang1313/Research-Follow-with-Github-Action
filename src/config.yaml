@@ -1,0 +1,83 @@
+timezone: Asia/Shanghai
+lookback_hours: 36
+max_papers: 10
+max_llm_eval: 30
+min_keyword_hits: 1
+llm:
+  model: DeepSeek-R1
+  temperature: 0.2
+  max_tokens: 1200
+sources:
+  rss:
+    - name: IEEE Xplore TOC59 (Feedly)
+      url: "https://feedly.com/i/subscription/feed%2Fhttp%3A%2F%2Fieeexplore.ieee.org%2Frss%2FTOC59.XML"
+      group: ieee
+  nature_rss:
+    - name: Nature Energy
+      url: "https://feeds.nature.com/nenergy/rss/current"
+      group: nature
+    - name: Nature Climate Change
+      url: "https://feeds.nature.com/nclimate/rss/current"
+      group: nature
+    - name: Nature Sustainability
+      url: "https://feeds.nature.com/nsustain/rss/current"
+      group: nature
+    - name: Nature Communications
+      url: "https://feeds.nature.com/ncomms/rss/current"
+      group: nature
+    - name: Communications Earth & Environment
+      url: "https://feeds.nature.com/commsenv/rss/current"
+      group: nature
+    - name: npj Urban Sustainability
+      url: "https://feeds.nature.com/npjurbansustain/rss/current"
+      group: nature
+arxiv:
+  categories:
+    - eess.SY
+    - eess.SP
+    - cs.CE
+    - physics.soc-ph
+  max_results: 50
+  use_updated: true
+filter:
+  focus_statement: |-
+    研究重点：城市建筑能源模拟（UBEM）与真实电网数据耦合，在极端气候条件下开展韧性评估与提升分析。
+    关注方向：城市/建筑-电网耦合、极端气候建模、韧性评估方法与提升策略。
+  keywords:
+    - urban
+    - city
+    - building energy
+    - UBEM
+    - urban building energy
+    - resilience
+    - resilient
+    - extreme climate
+    - climate hazard
+    - climate change
+    - heatwave
+    - wildfire
+    - flood
+    - power grid
+    - electric grid
+    - distribution grid
+    - transmission
+    - microgrid
+    - co-simulation
+    - coupled
+    - integrated
+    - urban energy system
+    - demand response
+    - outage
+    - reliability
+    - critical infrastructure
+ranking:
+  source_weight:
+    nature: 8
+    ieee: 6
+    arxiv: 4
+output:
+  language: zh-CN
+  include_preprints: true
+email:
+  subject_prefix: "[文献日报]"
+  from_name: "ResearchFollow Bot"

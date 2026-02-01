@@ -322,20 +322,42 @@ def llm_summary(client: OpenAI, model: str, focus: str, paper: Paper, language: 
         return extract_json(resp.choices[0].message.content)
 
 
-def build_email(papers: List[Paper], window_start: datetime, window_end: datetime, subject_prefix: str) -> Dict[str, str]:
+def build_email(
+    papers: List[Paper],
+    window_start: datetime,
+    window_end: datetime,
+    subject_prefix: str,
+    stats: Optional[Dict[str, int]] = None,
+) -> Dict[str, str]:
     date_str = window_end.strftime("%Y-%m-%d")
     subject = f"{subject_prefix} {date_str}"
+
+    stats_block = ""
+    if stats:
+        stats_block = (
+            "统计："
+            f"抓取={stats.get('fetched', 0)}，"
+            f"时间过滤={stats.get('after_date', 0)}，"
+            f"去重={stats.get('after_dedupe', 0)}，"
+            f"排除过滤={stats.get('after_exclude', 0)}，"
+            f"关键词过滤={stats.get('after_keyword', 0)}，"
+            f"组过滤={stats.get('after_group', 0)}，"
+            f"LLM阈值过滤={stats.get('after_llm', 0)}，"
+            f"最终={stats.get('final', 0)}"
+        )
 
     if not papers:
         text = (
             f"{date_str} 文献日报\n"
             f"时间范围：{window_start.isoformat()} - {window_end.isoformat()}\n\n"
-            "今日未发现满足条件的新论文。"
+            + (stats_block + "\n\n" if stats_block else "")
+            + "今日未发现满足条件的新论文。"
         )
         html = (
             f"<h2>{date_str} 文献日报</h2>"
             f"<p>时间范围：{window_start.isoformat()} - {window_end.isoformat()}</p>"
-            "<p>今日未发现满足条件的新论文。</p>"
+            + (f"<p>{stats_block}</p>" if stats_block else "")
+            + "<p>今日未发现满足条件的新论文。</p>"
         )
         return {"subject": subject, "text": text, "html": html}
 
@@ -343,6 +365,8 @@ def build_email(papers: List[Paper], window_start: datetime, window_end: datetim
         f"{date_str} 文献日报",
         f"时间范围：{window_start.isoformat()} - {window_end.isoformat()}",
         "",
+        stats_block if stats_block else "",
+        "" if stats_block else "",
         "目录：",
     ]
     for idx, p in enumerate(papers, 1):
@@ -353,6 +377,7 @@ def build_email(papers: List[Paper], window_start: datetime, window_end: datetim
     html_parts = [
         f"<h2>{date_str} 文献日报</h2>",
         f"<p>时间范围：{window_start.isoformat()} - {window_end.isoformat()}</p>",
+        f"<p>{stats_block}</p>" if stats_block else "",
         "<ol>",
     ]
     for p in papers:
@@ -481,8 +506,14 @@ def main() -> int:
             arxiv_cfg.get("use_updated", True),
         )
 
+    stats: Dict[str, int] = {}
+    stats["fetched"] = len(papers)
+
     papers = filter_by_date(papers, window_start)
+    stats["after_date"] = len(papers)
+
     papers = dedupe(papers, state.get("sent_ids", []))
+    stats["after_dedupe"] = len(papers)
 
     keywords = cfg.get("filter", {}).get("keywords", [])
     groups = cfg.get("filter", {}).get("required_groups", [])
@@ -501,11 +532,14 @@ def main() -> int:
             continue
         filtered.append(p)
     papers = filtered
+    stats["after_exclude"] = len(papers)
 
     min_hits = cfg.get("min_keyword_hits", 1)
     papers = [p for p in papers if p.keyword_hits >= min_hits or not keywords]
+    stats["after_keyword"] = len(papers)
     if min_groups > 0:
         papers = [p for p in papers if p.group_hits >= min_groups]
+    stats["after_group"] = len(papers)
 
     window_start_local = window_start.astimezone(tz)
     if not papers:
@@ -514,6 +548,7 @@ def main() -> int:
             window_start_local,
             now_local,
             cfg.get("email", {}).get("subject_prefix", "[文献日报]"),
+            stats,
         )
         if not args.no_email and not args.dry_run:
             send_email(email["subject"], email["text"], email["html"], cfg.get("email", {}).get("from_name", "ResearchFollow Bot"))
@@ -531,13 +566,20 @@ def main() -> int:
     if client:
         focus = cfg.get("filter", {}).get("focus_statement", "")
         max_eval = cfg.get("max_llm_eval", 30)
-        for p in papers[:max_eval]:
+        eval_list = papers
+        if max_eval and max_eval > 0 and len(papers) > max_eval:
+            eval_list = papers[:max_eval]
+            if require_llm:
+                print(f"[warn] LLM 只评估前 {max_eval} 篇，其余将忽略")
+        for p in eval_list:
             try:
                 data = llm_relevance(client, cfg.get("llm", {}).get("model", "DeepSeek-R1"), focus, p)
                 p.relevance_score = int(data.get("score", 0))
                 p.relevance_reason = str(data.get("reason", ""))
             except Exception as exc:
                 print(f"[warn] relevance LLM failed: {p.title} ({exc})")
+        if require_llm:
+            papers = eval_list
     else:
         print("[warn] LLM 不可用，使用关键词打分")
 
@@ -551,7 +593,9 @@ def main() -> int:
     min_llm_score = int(llm_cfg.get("min_relevance_score", 0))
     if client and min_llm_score > 0:
         papers = [p for p in papers if (p.relevance_score or 0) >= min_llm_score]
+    stats["after_llm"] = len(papers)
     papers = papers[: cfg.get("max_papers", 10)]
+    stats["final"] = len(papers)
 
     if client:
         focus = cfg.get("filter", {}).get("focus_statement", "")
@@ -580,6 +624,7 @@ def main() -> int:
         window_start_local,
         now_local,
         cfg.get("email", {}).get("subject_prefix", "[文献日报]"),
+        stats,
     )
 
     if not args.no_email and not args.dry_run:

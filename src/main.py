@@ -343,6 +343,8 @@ def build_email(
             f"关键词过滤={stats.get('after_keyword', 0)}，"
             f"组过滤={stats.get('after_group', 0)}，"
             f"LLM阈值过滤={stats.get('after_llm', 0)}，"
+            f"LLM相关={stats.get('llm_rel_ok', 0)}/{stats.get('llm_rel_fail', 0)}，"
+            f"LLM摘要={stats.get('llm_sum_ok', 0)}/{stats.get('llm_sum_fail', 0)}，"
             f"最终={stats.get('final', 0)}"
         )
 
@@ -541,6 +543,11 @@ def main() -> int:
         papers = [p for p in papers if p.group_hits >= min_groups]
     stats["after_group"] = len(papers)
 
+    stats["llm_rel_ok"] = 0
+    stats["llm_rel_fail"] = 0
+    stats["llm_sum_ok"] = 0
+    stats["llm_sum_fail"] = 0
+
     window_start_local = window_start.astimezone(tz)
     if not papers:
         email = build_email(
@@ -560,6 +567,11 @@ def main() -> int:
 
     papers.sort(key=lambda p: p.keyword_hits, reverse=True)
 
+    llm_rel_ok = 0
+    llm_rel_fail = 0
+    llm_sum_ok = 0
+    llm_sum_fail = 0
+
     client = None if args.no_llm else build_client()
     if require_llm and not client:
         raise RuntimeError("LLM 必需但未配置 DEEPSEEK_API_KEY")
@@ -571,15 +583,23 @@ def main() -> int:
             eval_list = papers[:max_eval]
             if require_llm:
                 print(f"[warn] LLM 只评估前 {max_eval} 篇，其余将忽略")
+        llm_rel_ok = 0
+        llm_rel_fail = 0
+        last_rel_error = ""
         for p in eval_list:
             try:
                 data = llm_relevance(client, cfg.get("llm", {}).get("model", "DeepSeek-R1"), focus, p)
                 p.relevance_score = int(data.get("score", 0))
                 p.relevance_reason = str(data.get("reason", ""))
+                llm_rel_ok += 1
             except Exception as exc:
                 print(f"[warn] relevance LLM failed: {p.title} ({exc})")
+                llm_rel_fail += 1
+                last_rel_error = str(exc)
         if require_llm:
             papers = eval_list
+            if llm_rel_ok == 0:
+                raise RuntimeError(f"LLM 相关性全部失败，请检查模型/API：{last_rel_error}")
     else:
         print("[warn] LLM 不可用，使用关键词打分")
 
@@ -600,12 +620,20 @@ def main() -> int:
     if client:
         focus = cfg.get("filter", {}).get("focus_statement", "")
         language = cfg.get("output", {}).get("language", "zh-CN")
+        llm_sum_ok = 0
+        llm_sum_fail = 0
+        last_sum_error = ""
         for p in papers:
             try:
                 p.summary = llm_summary(client, cfg.get("llm", {}).get("model", "DeepSeek-R1"), focus, p, language)
+                llm_sum_ok += 1
             except Exception as exc:
                 print(f"[warn] summary LLM failed: {p.title} ({exc})")
+                llm_sum_fail += 1
+                last_sum_error = str(exc)
                 p.summary = {"brief": "未生成", "problem": "未生成"}
+        if require_llm and llm_sum_ok == 0:
+            raise RuntimeError(f"LLM 摘要全部失败，请检查模型/API：{last_sum_error}")
     else:
         for p in papers:
             p.summary = {
@@ -618,6 +646,11 @@ def main() -> int:
                 "innovation": "未生成（需要 LLM）",
                 "reviewer_critique": "未生成（需要 LLM）",
             }
+
+    stats["llm_rel_ok"] = llm_rel_ok if client else 0
+    stats["llm_rel_fail"] = llm_rel_fail if client else 0
+    stats["llm_sum_ok"] = llm_sum_ok if client else 0
+    stats["llm_sum_fail"] = llm_sum_fail if client else 0
 
     email = build_email(
         papers,

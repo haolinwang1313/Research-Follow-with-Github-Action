@@ -2,14 +2,14 @@ timezone: Asia/Shanghai
 window_mode: fixed
 lookback_hours: 4320
 max_papers: 10
-max_llm_eval: 40
-min_keyword_hits: 2
+max_llm_eval: 60
+min_keyword_hits: 1
 llm:
   model: DeepSeek-R1
   temperature: 0.2
   max_tokens: 1200
   require: true
-  min_relevance_score: 60
+  min_relevance_score: 45
 sources:
   rss:
     - name: IEEE Xplore TOC59 (Feedly)
@@ -121,7 +121,7 @@ filter:
         - wildfire
         - storm
         - drought
-  min_groups_matched: 2
+  min_groups_matched: 1
   exclude_title_prefixes:
     - "Publisher Correction"
     - "Correction"

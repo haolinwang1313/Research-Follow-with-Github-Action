@@ -468,6 +468,7 @@ def main() -> int:
     papers: List[Paper] = []
     papers += collect_rss_sources(sources.get("rss", []), "rss")
     papers += collect_rss_sources(sources.get("nature_rss", []), "nature")
+    papers += collect_rss_sources(sources.get("elsevier_rss", []), "elsevier")
     if cfg.get("output", {}).get("include_preprints", True):
         arxiv_cfg = cfg.get("arxiv", {})
         papers += collect_arxiv(

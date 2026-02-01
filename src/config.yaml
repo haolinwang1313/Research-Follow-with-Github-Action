@@ -33,6 +33,22 @@ sources:
     - name: npj Urban Sustainability
       url: "https://feeds.nature.com/npjurbansustain/rss/current"
       group: nature
+  elsevier_rss:
+    - name: Energy
+      url: "https://rss.sciencedirect.com/publication/science/03605442"
+      group: elsevier
+    - name: Energy and Buildings
+      url: "https://rss.sciencedirect.com/publication/science/03787788"
+      group: elsevier
+    - name: Building and Environment
+      url: "https://rss.sciencedirect.com/publication/science/03601323"
+      group: elsevier
+    - name: Applied Energy
+      url: "https://rss.sciencedirect.com/publication/science/03062619"
+      group: elsevier
+    - name: Reliability Engineering & System Safety
+      url: "https://rss.sciencedirect.com/publication/science/09518320"
+      group: elsevier
 arxiv:
   categories:
     - eess.SY
@@ -117,6 +133,7 @@ ranking:
   source_weight:
     nature: 8
     ieee: 6
+    elsevier: 6
     arxiv: 4
 output:
   language: zh-CN

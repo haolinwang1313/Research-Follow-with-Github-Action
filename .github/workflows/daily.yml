@@ -5,6 +5,10 @@ on:
     - cron: '0 1 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: daily-literature
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -35,6 +39,8 @@ jobs:
           if git status --porcelain | grep state/; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
+            git fetch origin main
+            git rebase origin/main || true
             git add state/
             git commit -m "chore: update state"
             git push

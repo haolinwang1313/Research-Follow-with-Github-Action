@@ -1,12 +1,14 @@
 timezone: Asia/Shanghai
 lookback_hours: 36
 max_papers: 10
-max_llm_eval: 30
-min_keyword_hits: 1
+max_llm_eval: 40
+min_keyword_hits: 2
 llm:
   model: DeepSeek-R1
   temperature: 0.2
   max_tokens: 1200
+  require: true
+  min_relevance_score: 60
 sources:
   rss:
     - name: IEEE Xplore TOC59 (Feedly)
@@ -70,6 +72,47 @@ filter:
     - outage
     - reliability
     - critical infrastructure
+  required_groups:
+    - name: urban_building
+      any:
+        - urban
+        - city
+        - building
+        - UBEM
+        - district
+        - building energy
+        - urban energy
+    - name: grid_power
+      any:
+        - power grid
+        - electric grid
+        - power system
+        - distribution
+        - transmission
+        - microgrid
+        - electricity
+        - substation
+    - name: climate_resilience
+      any:
+        - resilience
+        - resilient
+        - extreme
+        - climate
+        - hazard
+        - heatwave
+        - flood
+        - wildfire
+        - storm
+        - drought
+  min_groups_matched: 2
+  exclude_title_prefixes:
+    - "Publisher Correction"
+    - "Correction"
+    - "Erratum"
+    - "Corrigendum"
+  exclude_keywords:
+    - perovskite
+    - polariton
 ranking:
   source_weight:
     nature: 8

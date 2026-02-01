@@ -32,6 +32,7 @@ class Paper:
     source_group: str
     doi: Optional[str] = None
     keyword_hits: int = 0
+    group_hits: int = 0
     relevance_score: Optional[int] = None
     relevance_reason: Optional[str] = None
     summary: Optional[Dict[str, Any]] = None
@@ -203,6 +204,30 @@ def keyword_score(text: str, keywords: List[str]) -> int:
     return score
 
 
+def group_score(text: str, groups: List[Dict[str, Any]]) -> int:
+    if not groups:
+        return 0
+    text_low = text.lower()
+    matched = 0
+    for group in groups:
+        any_list = group.get("any", [])
+        for kw in any_list:
+            if kw.lower() in text_low:
+                matched += 1
+                break
+    return matched
+
+
+def should_exclude_title(title: str, prefixes: List[str]) -> bool:
+    if not prefixes:
+        return False
+    title_low = title.strip().lower()
+    for prefix in prefixes:
+        if title_low.startswith(prefix.lower()):
+            return True
+    return False
+
+
 def build_client() -> Optional[OpenAI]:
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
@@ -238,13 +263,21 @@ def llm_relevance(client: OpenAI, model: str, focus: str, paper: Paper) -> Dict[
         "请给出与研究方向的相关性评分（0-100），并给出不超过40字理由。"
         "返回 JSON：{\"score\": 0-100, \"reason\": \"...\"}"
     )
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.1,
-    )
-    data = extract_json(resp.choices[0].message.content)
-    return data
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.1,
+            response_format={"type": "json_object"},
+        )
+        return extract_json(resp.choices[0].message.content)
+    except Exception:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.1,
+        )
+        return extract_json(resp.choices[0].message.content)
 
 
 def llm_summary(client: OpenAI, model: str, focus: str, paper: Paper, language: str) -> Dict[str, Any]:
@@ -272,13 +305,21 @@ def llm_summary(client: OpenAI, model: str, focus: str, paper: Paper, language: 
         "innovation：创新点体现在哪里（数学/建模/其他）\n"
         "reviewer_critique：作为 reviewer 的锐评（优势/不足/改进方向），并对后续研究给出指导\n"
     )
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
-        temperature=0.2,
-    )
-    data = extract_json(resp.choices[0].message.content)
-    return data
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
+        return extract_json(resp.choices[0].message.content)
+    except Exception:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.2,
+        )
+        return extract_json(resp.choices[0].message.content)
 
 
 def build_email(papers: List[Paper], window_start: datetime, window_end: datetime, subject_prefix: str) -> Dict[str, str]:
@@ -410,6 +451,9 @@ def main() -> int:
     tz = ZoneInfo(cfg.get("timezone", "Asia/Shanghai"))
     now_utc = datetime.now(timezone.utc)
     now_local = now_utc.astimezone(tz)
+    llm_cfg = cfg.get("llm", {})
+    require_llm = bool(llm_cfg.get("require", False))
+    print(f"[info] LLM key present: {bool(os.getenv('DEEPSEEK_API_KEY'))}")
 
     last_run = state.get("last_run")
     if last_run:
@@ -436,12 +480,27 @@ def main() -> int:
     papers = dedupe(papers, state.get("sent_ids", []))
 
     keywords = cfg.get("filter", {}).get("keywords", [])
+    groups = cfg.get("filter", {}).get("required_groups", [])
+    min_groups = cfg.get("filter", {}).get("min_groups_matched", 0)
+    exclude_prefixes = cfg.get("filter", {}).get("exclude_title_prefixes", [])
+    exclude_keywords = cfg.get("filter", {}).get("exclude_keywords", [])
+    filtered: List[Paper] = []
     for p in papers:
+        if should_exclude_title(p.title, exclude_prefixes):
+            continue
         text = f"{p.title} {p.abstract}"
         p.keyword_hits = keyword_score(text, keywords)
+        p.group_hits = group_score(text, groups)
+        text_low = text.lower()
+        if exclude_keywords and any(k.lower() in text_low for k in exclude_keywords):
+            continue
+        filtered.append(p)
+    papers = filtered
 
     min_hits = cfg.get("min_keyword_hits", 1)
     papers = [p for p in papers if p.keyword_hits >= min_hits or not keywords]
+    if min_groups > 0:
+        papers = [p for p in papers if p.group_hits >= min_groups]
 
     window_start_local = window_start.astimezone(tz)
     if not papers:
@@ -462,6 +521,8 @@ def main() -> int:
     papers.sort(key=lambda p: p.keyword_hits, reverse=True)
 
     client = None if args.no_llm else build_client()
+    if require_llm and not client:
+        raise RuntimeError("LLM 必需但未配置 DEEPSEEK_API_KEY")
     if client:
         focus = cfg.get("filter", {}).get("focus_statement", "")
         max_eval = cfg.get("max_llm_eval", 30)
@@ -482,6 +543,9 @@ def main() -> int:
         return base + weight
 
     papers.sort(key=final_score, reverse=True)
+    min_llm_score = int(llm_cfg.get("min_relevance_score", 0))
+    if client and min_llm_score > 0:
+        papers = [p for p in papers if (p.relevance_score or 0) >= min_llm_score]
     papers = papers[: cfg.get("max_papers", 10)]
 
     if client:
